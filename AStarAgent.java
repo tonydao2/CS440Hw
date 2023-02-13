@@ -398,6 +398,9 @@ public class AStarAgent extends Agent {
 			
 			System.out.println("moving to: " + curr);
 		
+            System.out.println(neighbours);
+            System.out.println("test");
+
 		}
     		
 		return tracePath(start, curr, stack);
