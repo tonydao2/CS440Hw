@@ -362,52 +362,58 @@ public class AStarAgent extends Agent {
      */
     private Stack<MapLocation> AstarSearch(MapLocation start, MapLocation goal, int xExtent, int yExtent, 
     									   MapLocation enemyFootmanLoc, Set<MapLocation> resourceLocations)
+                                           private Stack<MapLocation> AstarSearch(MapLocation start, MapLocation goal, int xExtent, int yExtent, 
+    									   MapLocation enemyFootmanLoc, Set<MapLocation> resourceLocations)
     {
     	Stack<MapLocation> stack = new Stack<MapLocation>();
-    	MapLocation curr = start;
+    	HashSet<MapLocation> finalized = new HashSet<MapLocation>();
+    	HashMap<MapLocation, Integer> best_path = new HashMap<MapLocation, Integer>(); // Keeps track of best path to get to MapLocation
     	
+    	PriorityQueue<MapLocation> heap = new PriorityQueue<MapLocation>(new HeapCompare()); // Initialized Hash
     	
-    	PriorityQueue<MapLocation> heap = new PriorityQueue<MapLocation>();  // Priority Queue
-    	
-    	HashMap<MapLocation, MapLocation> nodeTo =  new HashMap<MapLocation, MapLocation>(); // Maintain a HashMap of what node gets to which Value is parent of key
     	heap.add(start);
-    	System.out.println(heap);
+    	best_path.put(start, start.pathCost);
     	
-    	
-    	while (curr.equals(goal) == false) {
+    	while (!(heap.isEmpty())) {
     		// pop first node and check neighbors
-    		curr = heap.poll();
+    		MapLocation current_path = heap.poll();
+    		finalized.add(current_path);
     		
-    		System.out.println(heap);
-    		System.out.println(curr);
     		
-    		if (curr.equals(goal)) {
-    			break;
+    		if (current_path.equals(goal)) { // FOUND GOAL!
+    			return tracePath(start, current_path.cameFrom, stack);
     		}
     		
-    		ArrayList<MapLocation> neighbours = getAndCheckNeighbors(curr.pathCost, curr, goal, xExtent, yExtent, enemyFootmanLoc, resourceLocations);
-    		System.out.println(neighbours);
     		
     		
-    		for (MapLocation move: neighbours) {
-    			System.out.println(move);
-    			System.out.println(heap);
-    			heap.add(move);
+    		// Expands neighbors of current MapLoc
+    		ArrayList<MapLocation> neighbours = getAndCheckNeighbors(current_path.pathCost+1, current_path, goal, xExtent, yExtent, enemyFootmanLoc, resourceLocations);
+  
+    		for (MapLocation child: neighbours) {
+    			if (!(finalized.contains(child))) {
+    				if (best_path.containsKey(child)) {
+    					int old_value = best_path.get(child);
+    					if (old_value > child.pathCost) { 
+    						heap.remove(child);
+    						heap.add(child);
+    					}
+    				} else {
+    					heap.add(child);
+    					best_path.put(child, child.pathCost);
+    				}
+    			}
     		}
-
-    		
-    		
-    		System.out.println(heap);
-    		System.out.println(curr);
-    		
-    		
     		
     		
 		}
-		
     		
-		return tracePath(start, curr, stack);
-    	
+		
+
+		/* No duplicates heap O(V) nodes in Heap, heap operations add O(log(V))
+    		
+    	*/
+		return null; // Can't find path
+		
 	}
 	
 	
