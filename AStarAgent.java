@@ -366,40 +366,45 @@ public class AStarAgent extends Agent {
     	Stack<MapLocation> stack = new Stack<MapLocation>();
     	MapLocation curr = start;
     	
-    	for (int i = 0; i < 100; i++) {
     	
+    	PriorityQueue<MapLocation> heap = new PriorityQueue<MapLocation>();  // Priority Queue
+    	
+    	HashMap<MapLocation, MapLocation> nodeTo =  new HashMap<MapLocation, MapLocation>(); // Maintain a HashMap of what node gets to which Value is parent of key
+    	heap.add(start);
+    	System.out.println(heap);
+    	
+    	
+    	while (curr.equals(goal) == false) {
+    		// pop first node and check neighbors
+    		curr = heap.poll();
+    		
+    		System.out.println(heap);
+    		System.out.println(curr);
+    		
+    		if (curr.equals(goal)) {
+    			break;
+    		}
+    		
     		ArrayList<MapLocation> neighbours = getAndCheckNeighbors(curr.pathCost, curr, goal, xExtent, yExtent, enemyFootmanLoc, resourceLocations);
     		System.out.println(neighbours);
-    		HashMap<MapLocation, Float> map = new HashMap<MapLocation, Float>();
-        	
     		
     		
-    		for (MapLocation move: neighbours) { //creates a hashmap of possible moves and its cost
-    			map.put(move, move.cost + heuristic(move.x, move.y, goal));
-				System.out.println(move + " heuristic: " + heuristic(move.x, move.y, goal) + " pathcost: " + move.pathCost + " cost: " + move.cost);
-				System.out.println(curr + " curr heuristic " + heuristic(curr.x, curr.y, goal) + " pathcost: " + curr.pathCost + " cost: " + curr.cost);
-			}
+    		for (MapLocation move: neighbours) {
+    			System.out.println(move);
+    			System.out.println(heap);
+    			heap.add(move);
+    		}
+
     		
-    		System.out.println(map);
     		
-			float min = (float) Double.POSITIVE_INFINITY;
-			
-			
-			
-			for (MapLocation move: neighbours) { // iterating and finding the smallest cost. returns MapLocation of the smallest cost
-				float new_values = map.get(move); 
-				if (new_values < min) { // updates min value
-					curr = move;
-					min = new_values;
-				} else if (new_values == min) {
-					
-				}
-			}
-			
-			System.out.println("moving to: " + curr);
-		
-            
+    		System.out.println(heap);
+    		System.out.println(curr);
+    		
+    		
+    		
+    		
 		}
+		
     		
 		return tracePath(start, curr, stack);
     	
