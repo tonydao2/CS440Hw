@@ -17,36 +17,41 @@ public class AStarAgent extends Agent {
  /**
   * A class to represent the location of an object in a map. Stores x, y position as well as the MapLocation
   * that came before it (for path searching), f(n) and g(n) of the node.
-  **/
+  * @author Andrew Wood
+  * @author Daniel Kim
+  *
+  */
     class MapLocation
     {
-        public int x, y, pathCost;
+        public int x, y;
         public MapLocation cameFrom;
-        public float cost;
+        public float g; // dijkstra's path cost: the cost of the path from the src up to the current node
+        public float f; // A* estimate vertex cost: the sum of g + h. H is only used here to help A* make
+        				// good choices of which path to expand
 
-        public MapLocation(int x, int y, MapLocation cameFrom, float cost)
+        public MapLocation(int x, int y, MapLocation cameFrom)
         {
             this.x = x;
             this.y = y;
             this.cameFrom = cameFrom;
-            this.cost = cost;
-            this.pathCost = 0;
+            this.g = 0;
+            this.f = 0;
         }
         
-        public MapLocation(int x, int y, MapLocation cameFrom, float cost, int pathCost)
+        public MapLocation(int x, int y, MapLocation cameFrom, float g, float f)
         {
             this.x = x;
             this.y = y;
             this.cameFrom = cameFrom;
-            this.cost = cost;
-            this.pathCost = pathCost;
+            this.g = g;
+            this.f = f;
         }
         
         /**
          * for printing purposes.
          */
         @Override
-        public String toString() {return "("+this.x+", "+this.y+", "+this.cost+")";}
+        public String toString() { return "(" + this.x + ", " + this.y + ", g=" + this.g + ", f=" + this.f + ")";}
         
         /**
          * Nodes are equal if they have equivalent x and y positions.
@@ -78,7 +83,7 @@ public class AStarAgent extends Agent {
     }
     
     Stack<MapLocation> path;
-    int footmanID, townhallID, enemyFootmanID; // the IDs of our footman and enemy units.
+    int footmanID, townhallID, enemyFootmanID;
     MapLocation nextLoc;
 
     private long totalPlanTime = 0; // nsecs
@@ -98,6 +103,11 @@ public class AStarAgent extends Agent {
     public Map<Integer, Action> initialStep(State.StateView newstate, History.HistoryView statehistory) {
         // get the footman location
         List<Integer> unitIDs = newstate.getUnitIds(playernum);
+        
+        for(Integer unitID: unitIDs)
+        {
+        	System.out.println(newstate.getUnit(unitID).getTemplateView().getName());
+        }
 
         if(unitIDs.size() == 0)
         {
@@ -105,7 +115,7 @@ public class AStarAgent extends Agent {
             return null;
         }
 
-        footmanID = unitIDs.get(0); // we only control a single agent
+        footmanID = unitIDs.get(0);
         
         // double check that this is a footman
         if(!newstate.getUnit(footmanID).getTemplateView().getName().equals("Footman"))
@@ -140,19 +150,19 @@ public class AStarAgent extends Agent {
             return null;
         }
 
-        this.townhallID = -1;
-        this.enemyFootmanID = -1;
+        townhallID = -1;
+        enemyFootmanID = -1;
         for(Integer unitID : enemyUnitIDs)
         {
             Unit.UnitView tempUnit = newstate.getUnit(unitID);
             String unitType = tempUnit.getTemplateView().getName().toLowerCase();
             if(unitType.equals("townhall"))
             {
-                this.townhallID = unitID;
+                townhallID = unitID;
             }
             else if(unitType.equals("footman"))
             {
-                this.enemyFootmanID = unitID;
+                enemyFootmanID = unitID;
             }
             else
             {
@@ -160,7 +170,7 @@ public class AStarAgent extends Agent {
             }
         }
 
-        if(this.townhallID == -1)
+        if(townhallID == -1)
         {
             System.err.println("Error: Couldn't find townhall");
             return null;
@@ -271,10 +281,21 @@ public class AStarAgent extends Agent {
      * @param state the state of the environment.
      * @param history the history of the environment
      * @param currentPath the path to check
-     * @return true if the agent should recalculate the plan (for example because the current plan is blocked)
+     * @return
      */
     private boolean shouldReplanPath(State.StateView state, History.HistoryView history, Stack<MapLocation> currentPath)
     {
+        Unit.UnitView footmanUnit = state.getUnit(enemyFootmanID);
+
+        int footmanX = footmanUnit.getXPosition();
+        int footmanY = footmanUnit.getYPosition();
+    	
+        MapLocation enemy = new MapLocation(footmanX, footmanY, null);
+        
+        if (currentPath.contains(enemy)) {
+        	return true;
+        }
+        
     	return false;
     }
 
@@ -287,18 +308,18 @@ public class AStarAgent extends Agent {
      */
     private Stack<MapLocation> findPath(State.StateView state)
     {
-        Unit.UnitView townhallUnit = state.getUnit(this.townhallID);
-        Unit.UnitView footmanUnit = state.getUnit(this.footmanID);
+        Unit.UnitView townhallUnit = state.getUnit(townhallID);
+        Unit.UnitView footmanUnit = state.getUnit(footmanID);
 
-        MapLocation startLoc = new MapLocation(footmanUnit.getXPosition(), footmanUnit.getYPosition(), null, 0);
+        MapLocation startLoc = new MapLocation(footmanUnit.getXPosition(), footmanUnit.getYPosition(), null);
 
-        MapLocation goalLoc = new MapLocation(townhallUnit.getXPosition(), townhallUnit.getYPosition(), null, 0);
+        MapLocation goalLoc = new MapLocation(townhallUnit.getXPosition(), townhallUnit.getYPosition(), null);
 
         MapLocation footmanLoc = null;
-        if(this.enemyFootmanID != -1)
+        if(enemyFootmanID != -1)
         {
             Unit.UnitView enemyFootmanUnit = state.getUnit(enemyFootmanID);
-            footmanLoc = new MapLocation(enemyFootmanUnit.getXPosition(), enemyFootmanUnit.getYPosition(), null, 0);
+            footmanLoc = new MapLocation(enemyFootmanUnit.getXPosition(), enemyFootmanUnit.getYPosition(), null);
         }
 
         // get resource locations
@@ -308,12 +329,14 @@ public class AStarAgent extends Agent {
         {
             ResourceNode.ResourceView resource = state.getResourceNode(resourceID);
 
-            resourceLocations.add(new MapLocation(resource.getXPosition(), resource.getYPosition(), null, 0));
+            resourceLocations.add(new MapLocation(resource.getXPosition(), resource.getYPosition(), null));
         }
         
         
         return AstarSearch(startLoc, goalLoc, state.getXExtent(), state.getYExtent(), footmanLoc, resourceLocations);
     }
+
+    
     /**
      * This is the method you will implement for the assignment. Your implementation
      * will use the A* algorithm to compute the optimum path from the start position to
@@ -360,46 +383,56 @@ public class AStarAgent extends Agent {
      * @param resourceLocations Set of positions occupied by resources
      * @return Stack of positions with top of stack being first move in plan
      */
+
+     class HeapCompare implements Comparator<MapLocation>{
+    	public int compare(MapLocation x, MapLocation y) {
+            if (x.f < y.f) { 
+                return -1;
+            }else if (x.f == y.f) {
+                return 0;
+            } else {
+            return 1;
+            }
+    	}
+    	
+    }
+    
     private Stack<MapLocation> AstarSearch(MapLocation start, MapLocation goal, int xExtent, int yExtent, 
-    									   MapLocation enemyFootmanLoc, Set<MapLocation> resourceLocations)
-                                           private Stack<MapLocation> AstarSearch(MapLocation start, MapLocation goal, int xExtent, int yExtent, 
     									   MapLocation enemyFootmanLoc, Set<MapLocation> resourceLocations)
     {
     	Stack<MapLocation> stack = new Stack<MapLocation>();
-    	HashSet<MapLocation> finalized = new HashSet<MapLocation>();
-    	HashMap<MapLocation, Integer> best_path = new HashMap<MapLocation, Integer>(); // Keeps track of best path to get to MapLocation
+    	HashSet<MapLocation> finalized = new HashSet<MapLocation>(); // Path finalized 
+    	HashMap<MapLocation, Float> best_path = new HashMap<MapLocation, Float>(); // Keeps track of best path to get to MapLocation
     	
     	PriorityQueue<MapLocation> heap = new PriorityQueue<MapLocation>(new HeapCompare()); // Initialized Hash
     	
     	heap.add(start);
-    	best_path.put(start, start.pathCost);
+    	best_path.put(start, start.f);
     	
     	while (!(heap.isEmpty())) {
     		// pop first node and check neighbors
     		MapLocation current_path = heap.poll();
     		finalized.add(current_path);
     		
-    		
     		if (current_path.equals(goal)) { // FOUND GOAL!
     			return tracePath(start, current_path.cameFrom, stack);
     		}
     		
-    		
-    		
     		// Expands neighbors of current MapLoc
-    		ArrayList<MapLocation> neighbours = getAndCheckNeighbors(current_path.pathCost+1, current_path, goal, xExtent, yExtent, enemyFootmanLoc, resourceLocations);
-  
+    		ArrayList<MapLocation> neighbours = getAndCheckNeighbors(current_path.g + 1, current_path, goal, xExtent, yExtent, enemyFootmanLoc, resourceLocations);
+    	
     		for (MapLocation child: neighbours) {
     			if (!(finalized.contains(child))) {
     				if (best_path.containsKey(child)) {
-    					int old_value = best_path.get(child);
-    					if (old_value > child.pathCost) { 
+    					float old_value = best_path.get(child);
+    					if (old_value > child.f) { 
     						heap.remove(child);
     						heap.add(child);
+    						best_path.put(child, old_value);
     					}
     				} else {
     					heap.add(child);
-    					best_path.put(child, child.pathCost);
+    					best_path.put(child, child.f);
     				}
     			}
     		}
@@ -410,13 +443,11 @@ public class AStarAgent extends Agent {
 		
 
 		/* No duplicates heap O(V) nodes in Heap, heap operations add O(log(V))
-    		
+    	
     	*/
 		return null; // Can't find path
 		
-	}
-	
-	
+    }
     
     /**
      * A method to get a Stack of MapLocations representing a path from an initial node to some
@@ -430,7 +461,7 @@ public class AStarAgent extends Agent {
     private Stack<MapLocation> tracePath(MapLocation start, MapLocation lastNode, Stack<MapLocation> path)
     {
     	path.push(lastNode);
-    	
+     
     	//this works by tracing the path backwards from the lastNode until the parent = start.
     	MapLocation parent = lastNode.cameFrom;
     	while(!parent.equals(start))
@@ -444,7 +475,7 @@ public class AStarAgent extends Agent {
     /**
      * A method to get a list of MapPositions representing the neighbors of a node that are valid
      * nodes to move to (valid nodes cannot be occupied by other objects such as trees,...).
-     * @param pathCost The total path cost from any neighbor node to the start node: g(n).
+     * @param parentGPlusEdgeCost The cost g(n) of the parent including the edge to the child we're going to generate
      * @param pt The node to find the neighbors of.
      * @param goal The goal node, used to calculate h(n) from any neighbor.
      * @param xExtent The maximum x boundary of the environment (assuming 0 is min).
@@ -454,7 +485,7 @@ public class AStarAgent extends Agent {
      * that are already occupied.
      * @return ArrayList of valid positions representing unoccupied neighbors of node pt.
      */
-    private ArrayList<MapLocation> getAndCheckNeighbors(int pathCost, MapLocation pt, MapLocation goal, int xExtent,
+    private ArrayList<MapLocation> getAndCheckNeighbors(float parentGPlusEdgeCost, MapLocation pt, MapLocation goal, int xExtent,
     													int yExtent, MapLocation enemy, Set<MapLocation> obstacles)
     {
      
@@ -471,7 +502,7 @@ public class AStarAgent extends Agent {
     			{ //run from pt.y-1 -> pt.y+1
     				if(i != pt.x || j != pt.y)
     				{ //if we aren't at (pt.x, pt.y)
-    					newPt = new MapLocation(i, j, pt, pathCost + this.heuristic(i, j, goal), pt.pathCost + 1); //neighbor point
+    					newPt = new MapLocation(i, j, pt, parentGPlusEdgeCost, parentGPlusEdgeCost + this.heuristic(i, j, goal)); //neighbor point
             
     					//if the point is valid (not occupied and in range)
     					if(newPt.x >= 0 && newPt.x < xExtent && newPt.y >= 0 && newPt.y < yExtent
@@ -490,7 +521,7 @@ public class AStarAgent extends Agent {
     			{ //run from pt.y-1 -> pt.y+1
     				if(i != pt.x || j != pt.y)
     				{ //if we arent at (pt.x, pt.y)
-    					newPt = new MapLocation(i, j, pt, pathCost + this.heuristic(i, j, goal), pt.pathCost + 1); //neighbor point
+    					newPt = new MapLocation(i, j, pt, parentGPlusEdgeCost, parentGPlusEdgeCost + this.heuristic(i, j, goal)); //neighbor point
          
     					//if the point is valid (not occupied and in range)
     					if(newPt.x >= 0 && newPt.x < xExtent && newPt.y >= 0 && newPt.y < yExtent && 
